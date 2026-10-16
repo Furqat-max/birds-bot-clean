@@ -1,5 +1,4 @@
 import os
-import random
 import logging
 import html
 import asyncio
@@ -9,170 +8,115 @@ from telegram import (
     InlineKeyboardMarkup,
     WebAppInfo,
     MenuButtonWebApp,
-    MenuButtonDefault,
 )
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    CallbackQueryHandler,
     ContextTypes,
 )
 
+# Konfiguratsiyalar va muhit o'zgaruvchilari
 TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 raw_url = os.environ.get("WEBAPP_URL", "https://birds-bot-clean.onrender.com").strip()
-# URL oxiridagi / belgilarni va ortiqcha bo'shliqlarni olib tashlaymiz
 WEBAPP_URL = raw_url.rstrip("/")
 
+# Loglarni sozlash
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
 
-EMOJI_COLLECTION = [
-    "🦅", "🦉", "🦁", "🐯", "🐼", "🦊", "🐰", "🐺",
-    "💎", "🪙", "🔥", "⚡", "🚀", "🎮", "🎯", "🏆"
-]
-
-USER_TARGETS = {}
-
-def generate_matrix_captcha(user_id: int):
-    selected = random.sample(EMOJI_COLLECTION, 4)
-    target = random.choice(selected)
-    USER_TARGETS[user_id] = target
-
-    buttons = [
-        [
-            InlineKeyboardButton(text=selected[0], callback_data=f"click_{selected[0]}"),
-            InlineKeyboardButton(text=selected[1], callback_data=f"click_{selected[1]}")
-        ],
-        [
-            InlineKeyboardButton(text=selected[2], callback_data=f"click_{selected[2]}"),
-            InlineKeyboardButton(text=selected[3], callback_data=f"click_{selected[3]}")
-        ]
-    ]
-    return target, InlineKeyboardMarkup(buttons)
-
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
-    user_name = html.escape(user.first_name) if user and user.first_name else "Foydalanuvchi"
 
-    # Pastdagi tugmani boshlang'ich oddiy holatga qaytaramiz
+    # Foydalanuvchi ma'lumotlarini xavfsiz shakllantirish
+    user_name = html.escape(user.first_name) if user and user.first_name else "Investor"
+    user_id = user.id if user else "Noma'lum"
+
+    # 1. Pastki asosiy chat menyusiga doimiy WebApp tugmasini o'rnatish
     try:
         await context.bot.set_chat_menu_button(
             chat_id=chat_id,
-            menu_button=MenuButtonDefault()
+            menu_button=MenuButtonWebApp(
+                text="🦅 Birds Invest",
+                web_app=WebAppInfo(url=WEBAPP_URL)
+            )
         )
     except Exception as e:
-        logging.warning(f"MenuDefault xatosi: {e}")
+        logging.warning(f"Menyu tugmasini faollashtirishda ogohlantirish: {e}")
 
-    target, keyboard = generate_matrix_captcha(user.id)
+    # 2. Referal va ulashish havolasini tayyorlash
+    bot_info = await context.bot.get_me()
+    referral_link = f"https://t.me/{bot_info.username}?start=ref_{user_id}"
+    share_link = f"https://t.me/share/url?url={referral_link}&text=🦅+Birds+Invest+-+Qushlar+bilan+virtual+daromad+olishni+boshlang!"
+
+    # 3. Keng qamrovli interaktiv tugmalar paneli
+    keyboard = [
+        # Asosiy kirish tugmasi
+        [
+            InlineKeyboardButton(
+                text="🚀 O‘YINNI BOSHLASH (WEBAPP)",
+                web_app=WebAppInfo(url=WEBAPP_URL)
+            )
+        ],
+        # Balans va reyting
+        [
+            InlineKeyboardButton(
+                text="💼 Hamyon",
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}#wallet")
+            ),
+            InlineKeyboardButton(
+                text="🏆 Top Reyting",
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}#leaders")
+            ),
+        ],
+        # Do'stlarni taklif qilish va Jamiyat
+        [
+            InlineKeyboardButton(
+                text="👥 Do‘stlarni taklif qilish",
+                url=share_link
+            ),
+            InlineKeyboardButton(
+                text="📢 Rasmiy Kanal",
+                url="https://t.me/telegram"
+            ),
+        ]
+    ]
+
+    # Qalin shriflar (bold) va emojilar bilan bezatilgan chiroyli xabar
+    welcome_message = (
+        f"🦅 <b>BIRDS INVEST EKOTIZIMIGA XUSH KELIBSIZ!</b>\n\n"
+        f"👤 <b>Investor:</b> <b>{user_name}</b>\n"
+        f"🆔 <b>Hisob raqami:</b> <code>{user_id}</code>\n"
+        f"📊 <b>Hisob holati:</b> 🟢 <b>Faol</b>\n"
+        f"🌐 <b>Platforma versiyasi:</b> <b>v2.0 (Tezkor)</b>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🎮 <b>O‘yin imkoniyatlari:</b>\n"
+        f"• <b>Qushlar sotib oling va daromadni ko‘paytiring</b>\n"
+        f"• <b>Tuxumlarni yig‘ib, virtual tangalarga almashtiring</b>\n"
+        f"• <b>Do‘stlaringizni taklif qilib, qo‘shimcha bonuslarga ega bo‘ling</b>\n\n"
+        f"👇 <b>Darhol platformaga kirish uchun pastdagi tugmani bosing:</b>"
+    )
 
     await update.message.reply_text(
-        f"👋 <b>Assalomu alaykum, {user_name}!</b>\n\n"
-        f"🛡️ <b>Birds Invest Xavfsizlik Tekshiruvi</b>\n"
-        f"Iltimos, bot emasligingizni tasdiqlang.\n\n"
-        f"👉 <b>Quyidagi 4 ta belgidan aynan [ {target} ] belgisini bosing:</b>",
-        reply_markup=keyboard,
+        text=welcome_message,
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
 
 
-async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    
-    # Tugma bosilgandagi Telegram animatsiyasini darhol to'xtatish
-    try:
-        await query.answer()
-    except Exception:
-        pass
-
-    user = update.effective_user
-    chat_id = update.effective_chat.id
-    user_name = html.escape(user.first_name) if user and user.first_name else "Foydalanuvchi"
-
-    clicked_emoji = query.data.replace("click_", "")
-    target_emoji = USER_TARGETS.get(user.id)
-
-    if clicked_emoji == target_emoji:
-        # 1. Pastdagi WebApp Menyu tugmasini yoqishga urinamiz
-        try:
-            await context.bot.set_chat_menu_button(
-                chat_id=chat_id,
-                menu_button=MenuButtonWebApp(
-                    text="🦅 Birds Invest",
-                    web_app=WebAppInfo(url=WEBAPP_URL)
-                )
-            )
-        except Exception as err:
-            logging.error(f"set_chat_menu_button xatosi (URL noto'g'ri bo'lishi mumkin): {err}")
-
-        # 2. Xabar ostidagi tugmalarni tuzamiz
-        try:
-            dashboard = [
-                [InlineKeyboardButton("🚀 O‘YINNI BOSHLASH (WEBAPP)", web_app=WebAppInfo(url=WEBAPP_URL))],
-                [
-                    InlineKeyboardButton("🌐 Veb-saytga o‘tish", url=WEBAPP_URL)
-                ]
-            ]
-            keyboard_markup = InlineKeyboardMarkup(dashboard)
-        except Exception as btn_err:
-            logging.error(f"Tugma yaratishda xato: {btn_err}")
-            # Agar WebAppInfo xato bersa, zaxira sifatida oddiy link tugma beradi
-            keyboard_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🚀 O‘YINGA KIRISH", url=WEBAPP_URL)]
-            ])
-
-        # 3. Xabarni yangilash
-        success_text = (
-            f"✅ <b>Tabriklaymiz, {user_name}!</b>\n\n"
-            f"Xavfsizlik tekshiruvidan muvaffaqiyatli o‘tdingiz.\n\n"
-            f"Quyidagi tugma orqali platformaga kiring:"
-        )
-
-        try:
-            await query.edit_message_text(
-                text=success_text,
-                reply_markup=keyboard_markup,
-                parse_mode="HTML"
-            )
-        except Exception as edit_err:
-            logging.error(f"edit_message_text xatosi: {edit_err}")
-            # Agar tahrirlab bo'lmasa, yangi xabar qilib yuboradi
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=success_text,
-                reply_markup=keyboard_markup,
-                parse_mode="HTML"
-            )
-
-    else:
-        # Noto'g'ri bosilganda yangi belgi berish
-        new_target, new_keyboard = generate_matrix_captcha(user.id)
-        fail_text = (
-            f"❌ <b>Noto‘g‘ri belgi!</b>\n\n"
-            f"Qaytadan urinib ko‘ring. Endi aynan <b>[ {new_target} ]</b> belgisini bosing:"
-        )
-        try:
-            await query.edit_message_text(
-                text=fail_text,
-                reply_markup=new_keyboard,
-                parse_mode="HTML"
-            )
-        except Exception:
-            pass
-
-
 async def setup_bot():
     app = ApplicationBuilder().token(TOKEN).build()
+
+    # Webhook va eski so'rovlarni tozalab, sof polling rejimini yoqish
     try:
         await app.bot.delete_webhook(drop_pending_updates=True)
     except Exception as e:
-        logging.warning(f"Webhook o'chirishda ogohlantirish: {e}")
+        logging.warning(f"Webhook reset: {e}")
 
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CallbackQueryHandler(handle_button))
     return app
 
 
@@ -181,5 +125,5 @@ if __name__ == "__main__":
     asyncio.set_event_loop(loop)
     app = loop.run_until_complete(setup_bot())
 
-    print("🦅 Birds Invest Bot to'liq tayyor va ishlamoqda...")
+    print("--> Birds Invest professional boti muvaffaqiyatli ishga tushdi...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
