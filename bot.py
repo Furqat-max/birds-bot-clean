@@ -26,38 +26,43 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+# Xotirada vaqtincha captcha natijalarini saqlash
+CAPTCHA_STORAGE = {}
+
 def generate_math_captcha():
-    num1 = random.randint(10, 40)
-    num2 = random.randint(1, 20)
+    num1 = random.randint(10, 30)
+    num2 = random.randint(1, 15)
     operator = random.choice(["+", "-"])
 
     if operator == "+":
-        correct_answer = num1 + num2
+        ans = num1 + num2
     else:
-        correct_answer = num1 - num2
+        ans = num1 - num2
 
-    question = f"{num1} {operator} {num2} = ?"
-    return question, correct_answer
+    text = f"{num1} {operator} {num2} = ?"
+    return text, ans
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
     user = update.effective_user
+    chat_id = update.effective_chat.id
     user_name = html.escape(user.first_name) if user and user.first_name else "Foydalanuvchi"
 
-    # 1. Pastdagi WebApp Menyu tugmasini darhol yashiramiz (standart holatga qaytaramiz)
+    # 1. Pastdagi menyu tugmasini darhol o'chirib, oddiy holatga qaytarish
     try:
         await context.bot.set_chat_menu_button(
             chat_id=chat_id,
             menu_button=MenuButtonDefault()
         )
     except Exception as e:
-        logging.error(f"Menu buttonni yashirishda xatolik: {e}")
+        logging.warning(f"MenuButton reset error: {e}")
 
-    question, answer = generate_math_captcha()
-    
-    context.user_data["captcha_answer"] = answer
-    context.user_data["is_verified"] = False
+    # 2. Yangi misol yaratish va saqlash
+    question, ans = generate_math_captcha()
+    CAPTCHA_STORAGE[chat_id] = {
+        "answer": ans,
+        "verified": False
+    }
 
     await update.message.reply_text(
         f"👋 <b>Assalomu alaykum, {user_name}!</b>\n\n"
@@ -68,43 +73,49 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def check_captcha_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
+
+    text = update.message.text.strip()
+    if text.startswith("/"):
+        return  # buyruqlarni o'tkazib yuboramiz
 
     chat_id = update.effective_chat.id
     user = update.effective_user
     user_name = html.escape(user.first_name) if user and user.first_name else "Foydalanuvchi"
 
-    user_text = update.message.text.strip()
-    correct_answer = context.user_data.get("captcha_answer")
-    is_verified = context.user_data.get("is_verified", False)
+    data = CAPTCHA_STORAGE.get(chat_id)
 
-    # Agar foydalanuvchi allaqachon tekshiruvdan o'tgan bo'lsa
-    if is_verified:
+    # Agar foydalanuvchi /start bosmagan bo'lsa
+    if not data:
+        await start_command(update, context)
+        return
+
+    # Agar allaqachon tasdiqlangan bo'lsa
+    if data.get("verified"):
         keyboard = [
             [InlineKeyboardButton("🦅 O‘yinga kirish", web_app=WebAppInfo(url=WEBAPP_URL))]
         ]
         await update.message.reply_text(
-            f"Hurmatli <b>{user_name}</b>, siz allaqachon tekshiruvdan o‘tgansiz. O‘yinga kirishingiz mumkin:",
+            f"Hurmatli <b>{user_name}</b>, siz tekshiruvdan o‘tgansiz:",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
         return
 
-    # Kiritilgan javobni tekshirish
+    # Javobni solishtiramiz
+    correct = data.get("answer")
     try:
-        user_num = int(user_text)
+        user_val = int(text)
     except ValueError:
-        await update.message.reply_text("Iltimos, faqat raqam shaklida javob bering!")
+        await update.message.reply_text("Iltimos, faqat son kiriting!")
         return
 
-    if correct_answer is not None and user_num == int(correct_answer):
-        # 1. Holatni tasdiqlaymiz
-        context.user_data["is_verified"] = True
-        context.user_data.pop("captcha_answer", None)
+    if user_val == correct:
+        data["verified"] = True
 
-        # 2. ENDI PASTDAGI MENYU TUGMASINI YOQAMIZ (Faqat to'g'ri yechganidan keyin chiqadi)
+        # ENDI PASTDAGI MENYU TUGMASINI YOQAMIZ
         try:
             await context.bot.set_chat_menu_button(
                 chat_id=chat_id,
@@ -114,27 +125,26 @@ async def check_captcha_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
             )
         except Exception as e:
-            logging.error(f"Menu buttonni yoqishda xatolik: {e}")
+            logging.warning(f"MenuButton set error: {e}")
 
-        # Xabar ostidagi tugma
+        # Xabar ostidagi WebApp tugmasi
         keyboard = [
             [InlineKeyboardButton("🦅 O‘yinga kirish (WebApp)", web_app=WebAppInfo(url=WEBAPP_URL))]
         ]
         await update.message.reply_text(
             f"✅ <b>Tabriklaymiz, {user_name}!</b>\n\n"
             "Xavfsizlik tekshiruvidan muvaffaqiyatli o‘tdingiz.\n"
-            "Pastdagi menyu tugmasi va quyidagi havola orqali platformaga kiring:",
+            "Quyidagi tugma orqali platformaga kiring:",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
     else:
-        # Noto'g'ri javob kiritilsa, yangi misol beriladi
-        new_question, new_answer = generate_math_captcha()
-        context.user_data["captcha_answer"] = new_answer
+        new_q, new_ans = generate_math_captcha()
+        data["answer"] = new_ans
 
         await update.message.reply_text(
             f"❌ <b>Noto‘g‘ri javob, {user_name}!</b>\n\n"
-            f"Qaytadan urinib ko‘ring: <b>{new_question}</b>",
+            f"Qayta urinib ko‘ring: <b>{new_q}</b>",
             parse_mode="HTML"
         )
 
@@ -143,6 +153,6 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), check_captcha_reply))
+    app.add_handler(MessageHandler(filters.ALL, message_handler))
 
     app.run_polling()
