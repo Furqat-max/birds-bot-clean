@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Birds Earn & Invest</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --accent: #38bdf8;
+            --accent-glow: #0284c7;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --gold: #fbbf24;
+            --green: #22c55e;
+            --red: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: radial-gradient(circle at top, #1e293b, #0f172a);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 16px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 26px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .balance-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 24px;
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+        }
+
+        .balance-label {
+            font-size: 14px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .balance-val {
+            font-size: 38px;
+            font-weight: 900;
+            color: var(--gold);
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .tap-area {
+            margin: 20px 0;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+
+        .tap-area:active {
+            transform: scale(0.92);
+        }
+
+        .bird-icon {
+            font-size: 80px;
+            filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.4));
+        }
+
+        /* Captcha Card */
+        .captcha-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 20px;
+            padding: 20px;
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+
+        .captcha-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--accent);
+        }
+
+        .captcha-box {
+            font-size: 24px;
+            font-weight: 800;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            letter-spacing: 2px;
+            border: 1px dashed var(--accent);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="number"] {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px;
+            color: #fff;
+            font-size: 18px;
+            text-align: center;
+            outline: none;
+        }
+
+        input[type="number"]:focus {
+            border-color: var(--accent);
+        }
+
+        button {
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        .msg {
+            margin-top: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            min-height: 20px;
+        }
+        .msg.ok { color: var(--green); }
+        .msg.err { color: var(--red); }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🦅 Birds Invest</h1>
+        <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">Telegram WebApp Platformasi</p>
+    </div>
+
+    <!-- Hisob -->
+    <div class="balance-card">
+        <div class="balance-label">Umumiy Balans</div>
+        <div class="balance-val">
+            <span>🪙</span><span id="balance">0</span>
+        </div>
+        <div class="tap-area" onclick="tapBird()">
+            <div class="bird-icon">🦅</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">Tanga ishlash uchun ustiga bosing!</p>
+        </div>
+    </div>
+
+    <!-- Matematik Captcha -->
+    <div class="captcha-card">
+        <div class="captcha-title">🤖 Bot emasmisiz? Captcha yeching</div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">To'g'ri javob uchun +100 bonus tanga!</p>
+        <div class="captcha-box" id="captcha-question">Yuklanmoqda...</div>
+        
+        <div class="input-group">
+            <input type="number" id="captcha-input" placeholder="Javobni yozing">
+            <button onclick="checkCaptcha()">Yuborish</button>
+        </div>
+        <div class="msg" id="captcha-msg"></div>
+    </div>
+
+    <script>
+        // Telegram WebApp kengaytirish
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.expand();
+        }
+
+        let balance = parseInt(localStorage.getItem('user_balance') || '0');
+        document.getElementById('balance').innerText = balance;
+
+        function tapBird() {
+            balance += 1;
+            updateBalance();
+            if (tg?.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
+        }
+
+        function updateBalance() {
+            document.getElementById('balance').innerText = balance;
+            localStorage.setItem('user_balance', balance);
+        }
+
+        // Serverdan tasodifiy Captcha olish
+        async function fetchCaptcha() {
+            try {
+                const res = await fetch('/api/captcha/');
+                const data = await res.json();
+                document.getElementById('captcha-question').innerText = data.question;
+                document.getElementById('captcha-input').value = '';
+            } catch (err) {
+                document.getElementById('captcha-question').innerText = "15 + 7 = ?";
+            }
+        }
+
+        // Javobni tekshirish
+        async function checkCaptcha() {
+            const ans = document.getElementById('captcha-input').value;
+            const msgEl = document.getElementById('captcha-msg');
+            
+            if (!ans) {
+                msgEl.className = 'msg err';
+                msgEl.innerText = "Javobni kiriting!";
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/verify/?answer=${encodeURIComponent(ans)}`);
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    msgEl.className = 'msg ok';
+                    msgEl.innerText = data.message;
+                    balance += data.reward;
+                    updateBalance();
+                    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                    setTimeout(() => {
+                        msgEl.innerText = '';
+                        fetchCaptcha();
+                    }, 1500);
+                } else {
+                    msgEl.className = 'msg err';
+                    msgEl.innerText = data.message;
+                    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+                }
+            } catch (e) {
+                msgEl.className = 'msg err';
+                msgEl.innerText = "Xatolik yuz berdi!";
+            }
+        }
+
+        // Dastlabki yuklanishda captchani chaqirish
+        fetchCaptcha();
+    </script>
+</body>
+</html>
